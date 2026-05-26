@@ -355,6 +355,73 @@ func parseCodexDebugModels(raw []byte) map[string]*ModelThinking {
 	return out
 }
 
+// ── cfuse ────────────────────────────────────────────────────────────
+//
+// cfuse wraps Claude Code and supports the same --effort flag and level
+// set. We reuse the claude discovery logic since the underlying engine
+// is identical.
+
+// annotateCfuseThinking populates each entry's Thinking field by reusing
+// the claude thinking discovery. cfuse delegates to the Claude Code engine,
+// so the effort levels are identical.
+func annotateCfuseThinking(ctx context.Context, models []Model, executablePath string) {
+	// cfuse supports --effort the same way Claude does. Try to discover
+	// levels from cfuse --help, falling back to claudeStaticEffortFallback.
+	cfusePath := executablePath
+	if cfusePath == "" {
+		cfusePath = "cfuse"
+	}
+	version, _ := detectCfuseVersion(ctx, cfusePath)
+	key := thinkingCacheKey{provider: "cfuse", executablePath: cfusePath, cliVersion: version}
+	if cached, ok := thinkingCacheGet(key); ok {
+		for i := range models {
+			if t, ok := cached[models[i].ID]; ok && t != nil {
+				models[i].Thinking = t
+			}
+		}
+		return
+	}
+
+	superset := cfuseEffortSuperset(ctx, cfusePath)
+	result := map[string]*ModelThinking{}
+	for _, m := range claudeStaticModels() {
+		allow := claudeModelEffortAllow[m.ID]
+		levels := projectClaudeLevels(superset, allow)
+		if len(levels) == 0 {
+			continue
+		}
+		result[m.ID] = &ModelThinking{
+			SupportedLevels: levels,
+			DefaultLevel:    "medium",
+		}
+	}
+	thinkingCachePut(key, result)
+
+	for i := range models {
+		if t, ok := result[models[i].ID]; ok && t != nil {
+			models[i].Thinking = t
+		}
+	}
+}
+
+// cfuseEffortSuperset discovers the --effort value list from cfuse --help.
+// Falls back to claudeStaticEffortFallback when discovery fails.
+func cfuseEffortSuperset(ctx context.Context, executablePath string) []string {
+	runCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, executablePath, "--help")
+	hideAgentWindow(cmd)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return append([]string(nil), claudeStaticEffortFallback...)
+	}
+	parsed := parseClaudeEffortHelp(string(out))
+	if len(parsed) == 0 {
+		return append([]string(nil), claudeStaticEffortFullSuperset...)
+	}
+	return parsed
+}
+
 // ── Shared validation ────────────────────────────────────────────────
 
 // ValidateThinkingLevel reports whether `value` is in the supported
@@ -444,6 +511,13 @@ var providerThinkingEnums = map[string]map[string]bool{
 		"medium":  true,
 		"high":    true,
 		"xhigh":   true,
+	},
+	"cfuse": {
+		"low":    true,
+		"medium": true,
+		"high":   true,
+		"xhigh":  true,
+		"max":    true,
 	},
 }
 

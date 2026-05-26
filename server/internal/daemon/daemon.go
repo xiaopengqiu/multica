@@ -3268,6 +3268,8 @@ func defaultArgsForProvider(cfg Config, provider string) []string {
 		args = cfg.ClaudeArgs
 	case "codex":
 		args = cfg.CodexArgs
+	case "cfuse":
+		args = cfg.CfuseArgs
 	default:
 		return nil
 	}

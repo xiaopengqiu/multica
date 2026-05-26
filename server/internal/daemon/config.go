@@ -62,7 +62,7 @@ type Config struct {
 	CLIVersion                     string                // multica CLI version (e.g. "0.1.13")
 	LaunchedBy                     string                // "desktop" when spawned by the Electron app, empty for standalone
 	Profile                        string                // profile name (empty = default)
-	Agents                         map[string]AgentEntry // keyed by provider: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro
+	Agents                         map[string]AgentEntry // keyed by provider: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, cfuse
 	WorkspacesRoot                 string                // base path for execution envs (default: ~/multica_workspaces)
 	KeepEnvAfterTask               bool                  // preserve env after task for debugging
 	HealthPort                     int                   // local HTTP port for health checks (default: 19514)
@@ -82,6 +82,7 @@ type Config struct {
 	AgentIdleWatchdog              time.Duration // force-stop a run when the backend goes silent this long with an empty queue (0 = disabled)
 	ClaudeArgs                     []string
 	CodexArgs                      []string
+	CfuseArgs                      []string
 	// LocalPaths lists absolute directory paths available on this daemon's
 	// machine. When a project has a local_path resource whose daemon_id
 	// matches this daemon, only this daemon's runtimes can claim tasks for
@@ -212,8 +213,11 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	if e, ok := probe("MULTICA_KIRO_PATH", "kiro-cli", "MULTICA_KIRO_MODEL"); ok {
 		agents["kiro"] = e
 	}
+	if e, ok := probe("MULTICA_CFUSE_PATH", "cfuse", "MULTICA_CFUSE_MODEL"); ok {
+		agents["cfuse"] = e
+	}
 	if len(agents) == 0 {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, or kiro-cli and ensure it is on PATH")
+		return Config{}, fmt.Errorf("no agent CLI found: install claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, kiro-cli, or cfuse and ensure it is on PATH")
 	}
 
 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
@@ -221,6 +225,10 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		return Config{}, err
 	}
 	codexArgs, err := shellArgsFromEnv("MULTICA_CODEX_ARGS")
+	if err != nil {
+		return Config{}, err
+	}
+	cfuseArgs, err := shellArgsFromEnv("MULTICA_CFUSE_ARGS")
 	if err != nil {
 		return Config{}, err
 	}
@@ -428,6 +436,7 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		AgentIdleWatchdog:              agentIdleWatchdog,
 		ClaudeArgs:                     claudeArgs,
 		CodexArgs:                      codexArgs,
+		CfuseArgs:                      cfuseArgs,
 		LocalPaths:                     localPaths,
 	}, nil
 }
@@ -583,7 +592,7 @@ func shellArgsFromEnv(name string) ([]string, error) {
 // invocation, instead of paying the cost-per-miss.
 var defaultAgentCommandNames = []string{
 	"claude", "codex", "opencode", "openclaw", "hermes",
-	"gemini", "pi", "cursor-agent", "copilot", "kimi", "kiro-cli",
+	"gemini", "pi", "cursor-agent", "copilot", "kimi", "kiro-cli", "cfuse",
 }
 
 // loginShellResolveTimeout caps how long the daemon will wait for the user's
