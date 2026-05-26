@@ -283,7 +283,8 @@ type ProviderName =
   | "kiro"
   | "pi"
   | "copilot"
-  | "cursor";
+  | "cursor"
+  | "cfuse";
 
 type ActivityActor =
   | { kind: "user"; name: string; initial: string }

@@ -118,6 +118,9 @@ func InjectRuntimeConfig(workDir, provider string, ctx TaskContextForEnv) (strin
 	switch provider {
 	case "claude":
 		return content, os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte(content), 0o644)
+	case "cfuse":
+		// cfuse wraps Claude Code and reads CLAUDE.md for instructions.
+		return content, os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte(content), 0o644)
 	case "codex", "copilot", "opencode", "openclaw", "hermes", "pi", "cursor", "kimi", "kiro":
 		return content, os.WriteFile(filepath.Join(workDir, "AGENTS.md"), []byte(content), 0o644)
 	case "gemini":

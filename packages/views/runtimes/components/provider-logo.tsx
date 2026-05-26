@@ -207,6 +207,8 @@ export function ProviderLogo({
       return <KiroLogo className={className} />;
     case "gemini":
       return <GeminiLogo className={className} />;
+    case "cfuse":
+      return <ClaudeLogo className={className} />;
     default:
       return <Monitor className={className} />;
   }

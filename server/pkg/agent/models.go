@@ -134,6 +134,14 @@ func ListModels(ctx context.Context, providerType, executablePath string) ([]Mod
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			return discoverOpenclawAgents(ctx, executablePath)
 		})
+	case "cfuse":
+		// cfuse uses the same model list as Claude Code — it internally
+		// routes model names (e.g. glink/claude-opus-4-7) through its
+		// own ANT_FAMILY routing layer, so we reuse claude's catalog
+		// and let cfuse handle the actual routing at execution time.
+		models := claudeStaticModels()
+		annotateCfuseThinking(ctx, models, executablePath)
+		return models, nil
 	default:
 		return nil, fmt.Errorf("unknown agent type: %q", providerType)
 	}
