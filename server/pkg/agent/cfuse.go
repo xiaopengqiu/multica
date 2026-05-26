@@ -328,19 +328,21 @@ func buildCfuseArgs(opts ExecOptions, logger *slog.Logger) []string {
 // with a timeout. If that fails, we fall back to extracting the version from
 // the binary installation path (e.g. /versions/v2.6.21/cfuse -> 2.6.21).
 func detectCfuseVersion(ctx context.Context, execPath string) (string, error) {
-	// Try --version with a short timeout. Pipe "2" to stdin to skip update
-	// prompt if one appears ("2" = "continue startup").
-	runCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// Try --version with --skip-update to bypass interactive prompts. Also pipe
+	// "3" to stdin as a fallback: if --skip-update is not honored by this cfuse
+	// version, "3" selects "don't notify again for this version", permanently
+	// silencing the prompt and unblocking future runs.
+	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, execPath, "--version")
+	cmd := exec.CommandContext(runCtx, execPath, "--version", "--skip-update")
 	hideAgentWindow(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return extractCfuseVersionFromPath(execPath), nil
 	}
 	go func() {
-		// Send "2" to skip any engine update prompt, then close stdin.
-		io.WriteString(stdin, "2\n")
+		// Send "3" to permanently skip the engine update prompt, then close stdin.
+		io.WriteString(stdin, "3\n")
 		stdin.Close()
 	}()
 	data, err := cmd.Output()
