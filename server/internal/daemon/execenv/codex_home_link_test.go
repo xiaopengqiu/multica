@@ -244,3 +244,55 @@ func TestCopyFile(t *testing.T) {
 		t.Error("expected regular file, not symlink")
 	}
 }
+
+func TestCopyFile_OverwritesExistingDst(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	src := filepath.Join(dir, "config.toml")
+	dst := filepath.Join(dir, "task-config.toml")
+	os.WriteFile(src, []byte("v1"), 0o644)
+	os.WriteFile(dst, []byte("stale-snapshot"), 0o644)
+
+	if err := copyFile(src, dst); err != nil {
+		t.Fatalf("copyFile: %v", err)
+	}
+
+	data, _ := os.ReadFile(dst)
+	if string(data) != "v1" {
+		t.Errorf("dst content = %q, want %q (existing dst should be overwritten from src)", data, "v1")
+	}
+}
+
+// TestCopyFileIfExists_RefreshesStaleDstFromSrc covers the regression where a
+// user edits ~/.codex/config.toml after a task's per-task codex-home already
+// exists. On Reuse, prepareCodexHomeWithOpts re-copies the file, so the
+// per-task config must track the latest shared source rather than preserving
+// the snapshot taken at first Prepare.
+func TestCopyFileIfExists_RefreshesStaleDstFromSrc(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	src := filepath.Join(dir, "config.toml")
+	dst := filepath.Join(dir, "task-config.toml")
+
+	// First Prepare: src has the original content; dst is created from it.
+	os.WriteFile(src, []byte("model_provider = \"openai\""), 0o644)
+	if err := copyFileIfExists(src, dst); err != nil {
+		t.Fatalf("first copyFileIfExists: %v", err)
+	}
+
+	// User edits ~/.codex/config.toml (e.g. flips provider) between runs.
+	os.WriteFile(src, []byte("model_provider = \"zenmux\""), 0o644)
+
+	// Reuse path: dst already exists. The per-task home must pick up the new
+	// source content rather than keeping the stale snapshot.
+	if err := copyFileIfExists(src, dst); err != nil {
+		t.Fatalf("second copyFileIfExists: %v", err)
+	}
+
+	data, _ := os.ReadFile(dst)
+	if string(data) != "model_provider = \"zenmux\"" {
+		t.Errorf("dst content after refresh = %q, want refreshed src content", data)
+	}
+}

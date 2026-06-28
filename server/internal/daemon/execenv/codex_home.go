@@ -263,22 +263,32 @@ func logCodexAuthState(authPath string, logger *slog.Logger) {
 // codex_sandbox.go's ensureCodexSandboxConfig so they can be updated
 // idempotently without touching user-managed keys.)
 
-// copyFileIfExists copies src to dst. If src doesn't exist, it's a no-op.
-// If dst already exists, it's not overwritten.
+// copyFileIfExists copies src to dst, overwriting dst if it already exists.
+// If src doesn't exist, it's a no-op.
+//
+// Overwrite (rather than skip-when-dst-exists) is the correct policy for
+// per-task CODEX_HOME config copies: the daemon re-injects its managed
+// blocks (sandbox, multi-agent) after the copy, so a stale snapshot left
+// behind by a prior task run would otherwise shadow the user's current
+// ~/.codex/config.toml forever (e.g. a flipped model_provider never
+// propagates to existing per-task homes).
 func copyFileIfExists(src, dst string) error {
 	if _, err := os.Stat(src); os.IsNotExist(err) {
 		return nil
 	}
-
-	// Don't overwrite existing file.
-	if _, err := os.Stat(dst); err == nil {
-		return nil
-	}
-
 	return copyFile(src, dst)
 }
 
-// copyFile copies src to dst unconditionally.
+// copyFile copies src to dst, truncating dst if it already exists.
+//
+// Truncate (rather than O_EXCL) is required so the per-task CODEX_HOME config
+// copies track the latest shared ~/.codex/ source across Reuse runs: a user
+// who edits ~/.codex/config.toml after a task's codex-home already exists
+// must see the new config picked up on the next task run, not a stale
+// snapshot frozen at first Prepare. Callers that re-inject daemon-managed
+// blocks after the copy (sanitizeCopiedCodexConfig, ensureCodexSandboxConfig,
+// ensureCodexMultiAgentConfig) are all idempotent, so overwriting dst and
+// re-running the pipeline produces the correct final state.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -286,7 +296,7 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", dst, err)
 	}
