@@ -163,15 +163,16 @@ vi.mock("../../i18n", () => ({
 import { ProjectsPage } from "./projects-page";
 
 describe("ProjectsPage", () => {
-  it("stacks project rows on small screens so the project title gets the first line", () => {
+  it("keeps project rows stacked until large screens so mobile titles are not squeezed", () => {
     render(<ProjectsPage />);
 
     const titleLink = screen.getByRole("link", { name: "Alpha Project" });
     const row = titleLink.parentElement;
 
-    expect(row).toHaveClass("flex", "flex-col", "sm:flex-row");
-    expect(row).toHaveClass("sm:items-center");
-    expect(screen.getByText("Name").parentElement).toHaveClass("hidden", "sm:flex");
-    expect(titleLink).toHaveClass("sm:flex-1");
+    expect(row).toHaveClass("flex", "flex-col", "lg:flex-row");
+    expect(row).toHaveClass("lg:items-center");
+    expect(row).not.toHaveClass("sm:flex-row");
+    expect(screen.getByText("Name").parentElement).toHaveClass("hidden", "lg:flex");
+    expect(titleLink).toHaveClass("w-full", "lg:flex-1");
   });
 });

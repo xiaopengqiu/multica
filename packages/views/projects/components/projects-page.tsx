@@ -73,22 +73,22 @@ function ProjectRow({ project }: { project: Project }) {
   );
 
   return (
-    <div className="group/row flex flex-col gap-2 border-b px-4 py-3 text-sm transition-colors hover:bg-accent/40 sm:h-11 sm:flex-row sm:items-center sm:gap-2 sm:border-b-0 sm:px-5 sm:py-0">
+    <div className="group/row flex flex-col gap-2 border-b px-4 py-3 text-sm transition-colors hover:bg-accent/40 lg:h-11 lg:flex-row lg:items-center lg:gap-2 lg:border-b-0 lg:px-5 lg:py-0">
       {/* Icon + Name (navigates to detail) */}
       <AppLink
         href={wsPaths.projectDetail(project.id)}
-        className="flex min-w-0 items-center gap-2 sm:flex-1"
+        className="flex w-full min-w-0 items-center gap-2 lg:flex-1"
       >
         <ProjectIcon project={project} size="md" />
         <span className="min-w-0 flex-1 truncate font-medium">{project.title}</span>
       </AppLink>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs sm:contents sm:pl-0">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs lg:contents lg:pl-0">
         {/* Priority — dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <button type="button" className="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 cursor-pointer transition-colors hover:bg-accent/60 sm:w-24 sm:justify-center">
+              <button type="button" className="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 cursor-pointer transition-colors hover:bg-accent/60 lg:w-24 lg:justify-center">
                 <PriorityIcon priority={project.priority} />
                 <span className={cn("text-xs", priorityCfg.color)}>{priorityLabels[project.priority]}</span>
               </button>
@@ -110,7 +110,7 @@ function ProjectRow({ project }: { project: Project }) {
           <DropdownMenuTrigger
             render={
               <button type="button" className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-80 sm:w-28 sm:justify-center",
+                "inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-medium cursor-pointer transition-opacity hover:opacity-80 lg:w-28 lg:justify-center",
                 statusCfg.badgeBg, statusCfg.badgeText,
               )}>
                 {statusLabels[project.status]}
@@ -129,7 +129,7 @@ function ProjectRow({ project }: { project: Project }) {
         </DropdownMenu>
 
         {/* Progress (read-only) */}
-        <span className="flex shrink-0 items-center gap-1.5 sm:w-24 sm:justify-center">
+        <span className="flex shrink-0 items-center gap-1.5 lg:w-24 lg:justify-center">
           {project.issue_count > 0 ? (
             <>
               <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-muted">
@@ -151,7 +151,7 @@ function ProjectRow({ project }: { project: Project }) {
         <Popover open={leadOpen} onOpenChange={(v) => { setLeadOpen(v); if (!v) setLeadFilter(""); }}>
           <PopoverTrigger
             render={
-              <button type="button" className="flex shrink-0 items-center justify-center rounded-full transition-all hover:ring-2 hover:ring-accent sm:w-10">
+              <button type="button" className="flex shrink-0 items-center justify-center rounded-full transition-all hover:ring-2 hover:ring-accent lg:w-10">
                 {project.lead_type && project.lead_id ? (
                   <Tooltip>
                     <TooltipTrigger render={<span><ActorAvatar actorType={project.lead_type} actorId={project.lead_id} size={22} enableHoverCard /></span>} />
@@ -222,7 +222,7 @@ function ProjectRow({ project }: { project: Project }) {
         </Popover>
 
         {/* Created */}
-        <span className="text-xs tabular-nums text-muted-foreground sm:w-20 sm:shrink-0 sm:text-right">
+        <span className="text-xs tabular-nums text-muted-foreground lg:w-20 lg:shrink-0 lg:text-right">
           {formatRelativeDate(project.created_at)}
         </span>
       </div>
@@ -258,7 +258,7 @@ export function ProjectsPage() {
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <>
-            <div className="sticky top-0 z-[1] hidden h-8 items-center gap-2 border-b bg-muted/30 px-5 sm:flex">
+            <div className="sticky top-0 z-[1] hidden h-8 items-center gap-2 border-b bg-muted/30 px-5 lg:flex">
               <span className="shrink-0 w-[24px]" />
               <Skeleton className="h-3 w-12 flex-1 max-w-[48px]" />
               <Skeleton className="h-3 w-12 shrink-0" />
@@ -267,9 +267,9 @@ export function ProjectsPage() {
               <Skeleton className="h-3 w-8 shrink-0" />
               <Skeleton className="h-3 w-12 shrink-0" />
             </div>
-            <div className="space-y-2 p-4 pt-0 sm:space-y-1 sm:p-5 sm:pt-1">
+            <div className="space-y-2 p-4 pt-0 lg:space-y-1 lg:p-5 lg:pt-1">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[72px] w-full sm:h-11" />
+                <Skeleton key={i} className="h-[72px] w-full lg:h-11" />
               ))}
             </div>
           </>
@@ -284,7 +284,7 @@ export function ProjectsPage() {
         ) : (
           <>
             {/* Column headers */}
-            <div className="sticky top-0 z-[1] hidden h-8 items-center gap-2 border-b bg-muted/30 px-5 text-xs font-medium text-muted-foreground sm:flex">
+            <div className="sticky top-0 z-[1] hidden h-8 items-center gap-2 border-b bg-muted/30 px-5 text-xs font-medium text-muted-foreground lg:flex">
               {/* Icon spacer + Name */}
               <span className="shrink-0 w-[24px]" />
               <span className="min-w-0 flex-1">{t(($) => $.table.name)}</span>
