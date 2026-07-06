@@ -8,6 +8,11 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Quick Reference
 
+### Publishing Defaults
+
+- When the user asks to push or publish to the remote without naming a target branch, push directly to remote `main`.
+- Do not suggest or create a PR by default for those requests; merge/push the current intended changes into `origin/main` unless the user explicitly asks for a PR or another branch.
+
 ### Architecture
 
 Go backend + monorepo frontend (pnpm workspaces + Turborepo) with shared packages.
