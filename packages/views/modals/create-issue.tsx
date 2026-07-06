@@ -10,6 +10,7 @@ import {
   ArrowUp,
   Check,
   ChevronRight,
+  FileText,
   Maximize2,
   Minimize2,
   MoreHorizontal,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
 import { toast } from "sonner";
-import type { Issue, IssueStatus, IssuePriority, IssueAssigneeType, LocalPathResourceRef } from "@multica/core/types";
+import type { AgentSkillSummary, Issue, IssueStatus, IssuePriority, IssueAssigneeType, LocalPathResourceRef } from "@multica/core/types";
 import {
   DialogContent,
   DialogTitle,
@@ -44,6 +45,7 @@ import { useQuickCreateStore } from "@multica/core/issues/stores/quick-create-st
 import { issueDetailOptions } from "@multica/core/issues/queries";
 import { useCreateIssue, useUpdateIssue } from "@multica/core/issues/mutations";
 import { projectResourcesOptions } from "@multica/core/projects";
+import { agentListOptions } from "@multica/core/workspace/queries";
 import { useFileUpload } from "@multica/core/hooks/use-file-upload";
 import {
   api,
@@ -55,7 +57,15 @@ import {
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
 import { PillButton } from "../common/pill-button";
 import { IssuePickerModal } from "./issue-picker-modal";
+import {
+  buildRequiredSkillDirective,
+  filterSkillsBySlashQuery,
+  getTrailingSkillSlashQuery,
+  replaceTrailingSkillSlashCommand,
+} from "./skill-directive";
 import { useT } from "../i18n";
+
+const EMPTY_AGENT_SKILLS: AgentSkillSummary[] = [];
 
 // ---------------------------------------------------------------------------
 // ManualCreatePanel — manual-mode body of the create-issue dialog. Renders
@@ -100,6 +110,7 @@ export function ManualCreatePanel({
   const setKeepOpen = useQuickCreateStore((s) => s.setKeepOpen);
 
   const [title, setTitle] = useState(draft.title);
+  const [descriptionMarkdown, setDescriptionMarkdown] = useState(draft.description);
   const [formResetKey, setFormResetKey] = useState(0);
   const descEditorRef = useRef<ContentEditorRef>(null);
   const { isDragOver: descDragOver, dropZoneProps: descDropZoneProps } = useFileDropZone({
@@ -136,6 +147,19 @@ export function ManualCreatePanel({
   // Fetch parent issue details for the chip (status/identifier/title).
   // List cache usually has it already, so this resolves synchronously.
   const wsId = useWorkspaceId();
+  const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  const selectedAgent = useMemo(
+    () => (assigneeType === "agent" && assigneeId ? agents.find((agent) => agent.id === assigneeId) : undefined),
+    [agents, assigneeId, assigneeType],
+  );
+  const selectedAgentSkills = selectedAgent?.skills ?? EMPTY_AGENT_SKILLS;
+  const skillSlashQuery = getTrailingSkillSlashQuery(descriptionMarkdown);
+  const filteredAgentSkills = useMemo(
+    () => (skillSlashQuery === null ? [] : filterSkillsBySlashQuery(selectedAgentSkills, skillSlashQuery)),
+    [selectedAgentSkills, skillSlashQuery],
+  );
+  const showSkillSlashPicker =
+    selectedAgentSkills.length > 0 && skillSlashQuery !== null && filteredAgentSkills.length > 0;
   const { data: parentIssue } = useQuery({
     ...issueDetailOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
@@ -177,6 +201,10 @@ export function ManualCreatePanel({
     setAssigneeType(type); setAssigneeId(id);
     setDraft({ assigneeType: type, assigneeId: id });
   };
+  const updateDescription = (md: string) => {
+    setDescriptionMarkdown(md);
+    setDraft({ description: md });
+  };
   const updateStartDate = (v: string | null) => { setStartDate(v); setDraft({ startDate: v }); };
   const updateDueDate = (v: string | null) => { setDueDate(v); setDraft({ dueDate: v }); };
 
@@ -184,6 +212,7 @@ export function ManualCreatePanel({
   const updateIssueMutation = useUpdateIssue();
   const resetForNextIssue = () => {
     setTitle("");
+    setDescriptionMarkdown("");
     setStatus("todo");
     setPriority("none");
     setStartDate(null);
@@ -204,6 +233,18 @@ export function ManualCreatePanel({
     });
     descEditorRef.current?.clearContent();
     setFormResetKey((key) => key + 1);
+  };
+
+  const insertSkillDirective = (skill: (typeof selectedAgentSkills)[number]) => {
+    const current = descEditorRef.current?.getMarkdown() ?? descriptionMarkdown;
+    const next = replaceTrailingSkillSlashCommand(
+      current,
+      buildRequiredSkillDirective([skill]),
+    );
+    setDescriptionMarkdown(next);
+    setDraft({ description: next });
+    descEditorRef.current?.setMarkdown(next);
+    descEditorRef.current?.focus?.();
   };
 
   const handleSubmit = async () => {
@@ -475,10 +516,37 @@ export function ManualCreatePanel({
                 ref={descEditorRef}
                 defaultValue={draft.description}
                 placeholder={t(($) => $.create_issue.description_placeholder)}
-                onUpdate={(md) => setDraft({ description: md })}
+                onUpdate={updateDescription}
                 onUploadFile={handleUpload}
                 debounceMs={500}
               />
+              {showSkillSlashPicker && (
+                <div className="absolute bottom-2 left-5 z-20 w-[min(24rem,calc(100%-2.5rem))] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg">
+                  <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                    {t(($) => $.create_issue.skill_command_title)}
+                  </div>
+                  <div className="max-h-48 overflow-y-auto px-1 pb-1 pt-2">
+                    {filteredAgentSkills.map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => insertSkillDirective(skill)}
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+                      >
+                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{skill.name}</span>
+                          {skill.description ? (
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {skill.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {descDragOver && <FileDropOverlay />}
             </div>
 

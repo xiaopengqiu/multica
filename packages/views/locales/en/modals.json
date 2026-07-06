@@ -116,6 +116,7 @@
     "agent_breadcrumb": "Create with agent",
     "title_placeholder": "Issue title",
     "description_placeholder": "Add description...",
+    "skill_command_title": "Required skill",
     "more_options_aria": "More options",
     "submit": "Create Issue",
     "submitting": "Creating...",

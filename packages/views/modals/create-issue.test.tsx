@@ -28,6 +28,25 @@ const mockSetKeepOpen = vi.hoisted(() => vi.fn());
 const mockToastCustom = vi.hoisted(() => vi.fn());
 const mockToastDismiss = vi.hoisted(() => vi.fn());
 const mockToastError = vi.hoisted(() => vi.fn());
+const mockAgents = vi.hoisted(() => [
+  {
+    id: "agent-1",
+    name: "Codex",
+    archived_at: null,
+    skills: [
+      {
+        id: "skill-1",
+        name: "test-driven-development",
+        description: "Write the test first.",
+      },
+      {
+        id: "skill-2",
+        name: "code-review",
+        description: "Review implementation quality.",
+      },
+    ],
+  },
+]);
 
 const mockDraftStore = {
   draft: {
@@ -71,6 +90,13 @@ vi.mock("@multica/core/issues/queries", () => ({
   issueDetailOptions: (wsId: string, id: string) => ({
     queryKey: ["issues", wsId, "detail", id],
     queryFn: () => Promise.resolve(null),
+  }),
+}));
+
+vi.mock("@multica/core/workspace/queries", () => ({
+  agentListOptions: (wsId: string) => ({
+    queryKey: ["workspaces", wsId, "agents"],
+    queryFn: () => Promise.resolve(mockAgents),
   }),
 }));
 
@@ -142,6 +168,11 @@ vi.mock("../editor", () => {
     const [value, setValue] = useState(defaultValue || "");
     useImperativeHandle(ref, () => ({
       getMarkdown: () => valueRef.current,
+      setMarkdown: (markdown: string) => {
+        valueRef.current = markdown;
+        setValue(markdown);
+        onUpdate?.(markdown);
+      },
       clearContent: () => {
         valueRef.current = "";
         setValue("");
@@ -401,6 +432,31 @@ describe("CreateIssueModal", () => {
       assigneeId: undefined,
       startDate: null,
       dueDate: null,
+    });
+  });
+
+  it("filters and inserts selected agent skills from a slash query into the description", async () => {
+    const user = userEvent.setup();
+    mockDraftStore.draft.assigneeType = "agent";
+    mockDraftStore.draft.assigneeId = "agent-1";
+
+    renderModal(<CreateIssueModal onClose={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText("Issue title"), "Add billing tests");
+    await user.type(screen.getByPlaceholderText("Add description..."), "Please cover edge cases\n/test");
+
+    expect(await screen.findByRole("button", { name: /test-driven-development/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /code-review/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /test-driven-development/i }));
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
+
+    await waitFor(() => {
+      expect(mockCreateIssue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: "Please cover edge cases\n\nRequired skills: test-driven-development",
+        }),
+      );
     });
   });
 
