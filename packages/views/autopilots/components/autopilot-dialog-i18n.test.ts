@@ -16,6 +16,26 @@ import { formatSchedulePartialFailureToast } from "./autopilot-dialog-toast";
 
 describe("autopilot dialog partial-success toast", () => {
   const reason = "schedule conflict: 09:00 overlaps existing trigger";
+  function expectResolvedText(rendered: string, key: string) {
+    expect(rendered).toBeTruthy();
+    expect(rendered).not.toBe(key);
+  }
+
+  function expectResolvedKeys(t: TFunction<"autopilots">) {
+    expectResolvedText(t(($) => $.trigger_row.edit_trigger, { kind: "Schedule" }), "trigger_row.edit_trigger");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.title), "edit_trigger_dialog.title");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.kind_label), "edit_trigger_dialog.kind_label");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.enabled_label), "edit_trigger_dialog.enabled_label");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.webhook_help), "edit_trigger_dialog.webhook_help");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.api_note), "edit_trigger_dialog.api_note");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.save), "edit_trigger_dialog.save");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.saving), "edit_trigger_dialog.saving");
+    expectResolvedText(t(($) => $.edit_trigger_dialog.toast_updated), "edit_trigger_dialog.toast_updated");
+    expectResolvedText(
+      t(($) => $.edit_trigger_dialog.toast_update_failed),
+      "edit_trigger_dialog.toast_update_failed",
+    );
+  }
 
   describe("en", () => {
     const i18n = createI18n("en", { en: { autopilots: enAutopilots } });
@@ -46,6 +66,10 @@ describe("autopilot dialog partial-success toast", () => {
         "Autopilot updated, but schedule failed to save",
       );
     });
+
+    it("resolves edit trigger strings", () => {
+      expectResolvedKeys(t);
+    });
   });
 
   describe("zh-Hans", () => {
@@ -67,6 +91,10 @@ describe("autopilot dialog partial-success toast", () => {
       expect(rendered).toContain(reason);
       expect(rendered).not.toContain("{{");
       expect(rendered).not.toContain("{reason}");
+    });
+
+    it("resolves edit trigger strings", () => {
+      expectResolvedKeys(t);
     });
   });
 });

@@ -747,6 +747,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       return cached?.description != null ? cached : undefined;
     },
   });
+  const selectedAgentSkills = useMemo(() => {
+    if (issue?.assignee_type !== "agent" || !issue.assignee_id) return [];
+    return agents.find((agent) => agent.id === issue.assignee_id)?.skills ?? [];
+  }, [agents, issue?.assignee_id, issue?.assignee_type]);
 
   // Record recent visit
   const recordVisit = useRecentIssuesStore((s) => s.recordVisit);
@@ -1933,7 +1937,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                   keeps the previous issue's in-memory content and the
                   next keystroke would flush it into the new issue's
                   draft key. */}
-              <CommentInput key={id} issueId={id} onSubmit={submitComment} />
+              <CommentInput
+                key={id}
+                issueId={id}
+                onSubmit={submitComment}
+                agentSkills={selectedAgentSkills}
+              />
             </div>
           </div>
         </div>

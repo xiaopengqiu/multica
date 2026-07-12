@@ -258,6 +258,7 @@
     "reply_count_other": "{{count}} replies",
     "leave_comment_placeholder": "Leave a comment...",
     "send_tooltip": "Send",
+    "skill_command_title": "Required skill",
     "expand_tooltip": "Expand",
     "collapse_tooltip": "Collapse",
     "resolve": {

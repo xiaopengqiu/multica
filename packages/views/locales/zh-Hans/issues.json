@@ -256,6 +256,7 @@
     "reply_count_other": "{{count}} 条回复",
     "leave_comment_placeholder": "留下评论...",
     "send_tooltip": "发送",
+    "skill_command_title": "必须调用的 skill",
     "expand_tooltip": "展开",
     "collapse_tooltip": "收起",
     "resolve": {

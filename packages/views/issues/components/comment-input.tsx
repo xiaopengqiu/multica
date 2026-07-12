@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { FileText, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
@@ -10,17 +10,26 @@ import { FileUploadButton } from "@multica/ui/components/common/file-upload-butt
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { useFileUpload } from "@multica/core/hooks/use-file-upload";
 import { api } from "@multica/core/api";
-import type { Attachment } from "@multica/core/types";
+import type { AgentSkillSummary, Attachment } from "@multica/core/types";
 import { enterKey, formatShortcut, modKey } from "@multica/core/platform";
 import { useCommentDraftStore } from "@multica/core/issues/stores";
 import { useT } from "../../i18n";
+import {
+  buildRequiredSkillDirective,
+  filterSkillsBySlashQuery,
+  getTrailingSkillSlashQuery,
+  replaceTrailingSkillSlashCommand,
+} from "../../modals/skill-directive";
 
 interface CommentInputProps {
   issueId: string;
   onSubmit: (content: string, attachmentIds?: string[]) => Promise<void>;
+  agentSkills?: readonly AgentSkillSummary[];
 }
 
-function CommentInput({ issueId, onSubmit }: CommentInputProps) {
+const EMPTY_AGENT_SKILLS: AgentSkillSummary[] = [];
+
+function CommentInput({ issueId, onSubmit, agentSkills = EMPTY_AGENT_SKILLS }: CommentInputProps) {
   const { t } = useT("issues");
   const editorRef = useRef<ContentEditorRef>(null);
   // Read the persisted draft once on mount. ContentEditor only honors
@@ -32,6 +41,14 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
   const [isEmpty, setIsEmpty] = useState(() => !initialDraft?.trim());
   const [submitting, setSubmitting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [markdown, setMarkdown] = useState(initialDraft ?? "");
+  const skillSlashQuery = getTrailingSkillSlashQuery(markdown);
+  const filteredAgentSkills = useMemo(
+    () => (skillSlashQuery === null ? [] : filterSkillsBySlashQuery(agentSkills, skillSlashQuery)),
+    [agentSkills, skillSlashQuery],
+  );
+  const showSkillSlashPicker =
+    agentSkills.length > 0 && skillSlashQuery !== null && filteredAgentSkills.length > 0;
   // Attachments uploaded in this composer session. Drives both:
   //  - submit-time `attachment_ids` payload (filtered to URLs still in markdown)
   //  - the editor's AttachmentDownloadProvider, so file-card Eye buttons can
@@ -71,6 +88,20 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
     return result;
   }, [uploadWithToast, issueId]);
 
+  const insertSkillDirective = (skill: AgentSkillSummary) => {
+    const current = editorRef.current?.getMarkdown() ?? markdown;
+    const next = replaceTrailingSkillSlashCommand(
+      current,
+      buildRequiredSkillDirective([skill]),
+    );
+    setMarkdown(next);
+    setIsEmpty(!next.trim());
+    if (next.trim().length > 0) setDraft(draftKey, next);
+    else clearDraft(draftKey);
+    editorRef.current?.setMarkdown(next);
+    editorRef.current?.focus();
+  };
+
   const handleSubmit = async () => {
     const content = editorRef.current?.getMarkdown()?.replace(/(\n\s*)+$/, "").trim();
     if (!content || submitting) return;
@@ -82,6 +113,7 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
     try {
       await onSubmit(content, activeIds.length > 0 ? activeIds : undefined);
       editorRef.current?.clearContent();
+      setMarkdown("");
       setIsEmpty(true);
       setPendingAttachments([]);
       clearDraft(draftKey);
@@ -104,6 +136,7 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
           defaultValue={initialDraft}
           placeholder={t(($) => $.comment.leave_comment_placeholder)}
           onUpdate={(md) => {
+            setMarkdown(md);
             setIsEmpty(!md.trim());
             // Debounced upstream (debounceMs=100). Persist on every tick so a
             // reload or scroll-out-of-viewport restores work to the keystroke.
@@ -116,6 +149,33 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
           currentIssueId={issueId}
           attachments={pendingAttachments}
         />
+        {showSkillSlashPicker && (
+          <div className="absolute bottom-2 left-3 z-20 w-[min(24rem,calc(100%-1.5rem))] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg">
+            <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+              {t(($) => $.comment.skill_command_title)}
+            </div>
+            <div className="max-h-48 overflow-y-auto px-1 pb-1 pt-2">
+              {filteredAgentSkills.map((skill) => (
+                <button
+                  key={skill.id}
+                  type="button"
+                  onClick={() => insertSkillDirective(skill)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+                >
+                  <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{skill.name}</span>
+                    {skill.description ? (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {skill.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="absolute bottom-1 right-1.5 flex items-center gap-1">
         <Tooltip>

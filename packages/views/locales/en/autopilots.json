@@ -126,6 +126,7 @@
     "api": "API"
   },
   "trigger_row": {
+    "edit_trigger": "Edit {{kind}} trigger",
     "disabled_badge": "Disabled",
     "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
@@ -209,6 +210,17 @@
     "toast_added_schedule": "Schedule trigger added",
     "toast_added_webhook": "Webhook trigger added",
     "toast_add_failed": "Failed to add trigger"
+  },
+  "edit_trigger_dialog": {
+    "title": "Edit trigger",
+    "kind_label": "Type",
+    "enabled_label": "Enabled",
+    "webhook_help": "Copy or rotate the webhook URL from the trigger row. This dialog only changes the label and enabled state.",
+    "api_note": "API triggers are legacy trigger records. You can change their label and enabled state.",
+    "save": "Save changes",
+    "saving": "Saving...",
+    "toast_updated": "Trigger updated",
+    "toast_update_failed": "Failed to update trigger"
   },
   "dialog": {
     "sr_create": "New Autopilot",

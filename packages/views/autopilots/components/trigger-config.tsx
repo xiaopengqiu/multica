@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { cn } from "@multica/ui/lib/utils";
 import {
   Select,
@@ -257,6 +257,10 @@ export function TriggerConfigSection({
 }) {
   const { t } = useT("autopilots");
   const describeTrigger = useDescribeTrigger();
+  const id = useId();
+  const cronInputId = `${id}-cron`;
+  const minuteInputId = `${id}-minute`;
+  const timeInputId = `${id}-time`;
   const timezones = useMemo(() => {
     const local = getLocalTimezone();
     const set = new Set(COMMON_TIMEZONES);
@@ -287,10 +291,11 @@ export function TriggerConfigSection({
       {config.frequency === "custom" ? (
         /* Custom cron input */
         <div>
-          <label className="text-xs text-muted-foreground">
+          <label htmlFor={cronInputId} className="text-xs text-muted-foreground">
             {t(($) => $.trigger_config.cron_label)}
           </label>
           <input
+            id={cronInputId}
             type="text"
             value={config.cronExpression}
             onChange={(e) => onChange({ ...config, cronExpression: e.target.value })}
@@ -307,10 +312,11 @@ export function TriggerConfigSection({
           <div className="flex gap-3">
             {config.frequency === "hourly" ? (
               <div className="w-24">
-                <label className="text-xs text-muted-foreground">
+                <label htmlFor={minuteInputId} className="text-xs text-muted-foreground">
                   {t(($) => $.trigger_config.minute_label)}
                 </label>
                 <input
+                  id={minuteInputId}
                   type="number"
                   min={0}
                   max={59}
@@ -325,10 +331,11 @@ export function TriggerConfigSection({
             ) : (
               <>
                 <div className="w-28">
-                  <label className="text-xs text-muted-foreground">
+                  <label htmlFor={timeInputId} className="text-xs text-muted-foreground">
                     {t(($) => $.trigger_config.time_label)}
                   </label>
                   <input
+                    id={timeInputId}
                     type="time"
                     value={config.time}
                     onChange={(e) => onChange({ ...config, time: e.target.value || config.time })}

@@ -126,6 +126,7 @@
     "api": "API"
   },
   "trigger_row": {
+    "edit_trigger": "编辑{{kind}}触发器",
     "disabled_badge": "已禁用",
     "deprecated_badge": "已弃用",
     "next_label": "下次：{{date}}",
@@ -209,6 +210,17 @@
     "toast_added_schedule": "已添加时间表触发器",
     "toast_added_webhook": "已添加 Webhook 触发器",
     "toast_add_failed": "添加触发器失败"
+  },
+  "edit_trigger_dialog": {
+    "title": "编辑触发器",
+    "kind_label": "类型",
+    "enabled_label": "启用",
+    "webhook_help": "请在触发器行复制或重新生成 Webhook URL。此处只修改标签和启用状态。",
+    "api_note": "API 触发器是旧版触发记录。你可以修改它的标签和启用状态。",
+    "save": "保存修改",
+    "saving": "保存中...",
+    "toast_updated": "已更新触发器",
+    "toast_update_failed": "更新触发器失败"
   },
   "dialog": {
     "sr_create": "新建自动化",

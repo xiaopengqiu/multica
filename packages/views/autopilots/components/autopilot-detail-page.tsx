@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Zap, Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
   Ban, ChevronDown, ChevronRight,
@@ -13,6 +13,7 @@ import {
   useDeleteAutopilot,
   useTriggerAutopilot,
   useCreateAutopilotTrigger,
+  useUpdateAutopilotTrigger,
   useDeleteAutopilotTrigger,
   useRotateAutopilotTriggerWebhookToken,
 } from "@multica/core/autopilots/mutations";
@@ -47,6 +48,7 @@ import {
 import {
   TriggerConfigSection,
   getDefaultTriggerConfig,
+  parseCronExpression,
   toCronExpression,
 } from "./trigger-config";
 import type { TriggerConfig } from "./trigger-config";
@@ -248,7 +250,15 @@ function SkippedRunsGroup({
   );
 }
 
-function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autopilotId: string }) {
+function TriggerRow({
+  trigger,
+  autopilotId,
+  onEdit,
+}: {
+  trigger: AutopilotTrigger;
+  autopilotId: string;
+  onEdit: (trigger: AutopilotTrigger) => void;
+}) {
   const { t } = useT("autopilots");
   const deleteTrigger = useDeleteAutopilotTrigger();
   const rotateToken = useRotateAutopilotTriggerWebhookToken();
@@ -315,6 +325,8 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
 
   const Icon = isWebhook ? Webhook : isApi ? Zap : Clock;
   const showWebhookUrlRow = isWebhook && webhookUrl;
+  const triggerKindLabel = t(($) => $.trigger_kind[trigger.kind]);
+  const editLabel = t(($) => $.trigger_row.edit_trigger, { kind: triggerKindLabel });
 
   // Delete control extracted so a webhook trigger can render it inline
   // with Copy / Rotate on the URL action row (where the other action
@@ -338,33 +350,42 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
     <div className="flex items-start gap-3 rounded-md border px-3 py-2">
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium">{t(($) => $.trigger_kind[trigger.kind])}</span>
-          {trigger.label && (
-            <span className="text-xs text-muted-foreground">({trigger.label})</span>
-          )}
-          {!trigger.enabled && (
-            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-              {t(($) => $.trigger_row.disabled_badge)}
-            </span>
-          )}
-          {isApi && (
-            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-              {t(($) => $.trigger_row.deprecated_badge)}
-            </span>
-          )}
-        </div>
-        {trigger.cron_expression && (
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {trigger.cron_expression}
-            {trigger.timezone && ` (${trigger.timezone})`}
+        <button
+          type="button"
+          className="group w-full rounded-sm text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => onEdit(trigger)}
+          aria-label={editLabel}
+          title={editLabel}
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{triggerKindLabel}</span>
+            {trigger.label && (
+              <span className="text-xs text-muted-foreground">({trigger.label})</span>
+            )}
+            {!trigger.enabled && (
+              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                {t(($) => $.trigger_row.disabled_badge)}
+              </span>
+            )}
+            {isApi && (
+              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                {t(($) => $.trigger_row.deprecated_badge)}
+              </span>
+            )}
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           </div>
-        )}
-        {trigger.next_run_at && (
-          <div className="text-xs text-muted-foreground">
-            {t(($) => $.trigger_row.next_label, { date: formatDate(trigger.next_run_at) })}
-          </div>
-        )}
+          {trigger.cron_expression && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {trigger.cron_expression}
+              {trigger.timezone && ` (${trigger.timezone})`}
+            </div>
+          )}
+          {trigger.next_run_at && (
+            <div className="text-xs text-muted-foreground">
+              {t(($) => $.trigger_row.next_label, { date: formatDate(trigger.next_run_at) })}
+            </div>
+          )}
+        </button>
         {showWebhookUrlRow && (
           <div className="mt-1.5 flex items-center gap-1.5">
             <code className="flex-1 min-w-0 truncate rounded bg-muted px-2 py-1 text-xs font-mono text-foreground">
@@ -442,27 +463,61 @@ function TriggerRow({ trigger, autopilotId }: { trigger: AutopilotTrigger; autop
   );
 }
 
-function AddTriggerDialog({
-  open,
-  onOpenChange,
-  autopilotId,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  autopilotId: string;
-}) {
+type TriggerDialogProps =
+  | {
+      mode: "add";
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      autopilotId: string;
+    }
+  | {
+      mode: "edit";
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      autopilotId: string;
+      trigger: AutopilotTrigger;
+    };
+
+function TriggerDialog(props: TriggerDialogProps) {
+  const { mode, open, onOpenChange, autopilotId } = props;
   const { t } = useT("autopilots");
   const createTrigger = useCreateAutopilotTrigger();
+  const updateTrigger = useUpdateAutopilotTrigger();
   const [kind, setKind] = useState<"schedule" | "webhook">("schedule");
   const [config, setConfig] = useState<TriggerConfig>(getDefaultTriggerConfig);
+  const [enabled, setEnabled] = useState(true);
   const [label, setLabel] = useState("");
+  const [labelTouched, setLabelTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const trigger = mode === "edit" ? props.trigger : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (mode === "add") {
+      setKind("schedule");
+      setConfig(getDefaultTriggerConfig());
+      setEnabled(true);
+      setLabel("");
+      setLabelTouched(false);
+      return;
+    }
+    if (!trigger) return;
+    setKind(trigger.kind === "schedule" ? "schedule" : "webhook");
+    setConfig(
+      trigger.kind === "schedule"
+        ? parseCronExpression(trigger.cron_expression ?? "", trigger.timezone ?? "UTC")
+        : getDefaultTriggerConfig(),
+    );
+    setEnabled(trigger.enabled);
+    setLabel(trigger.label ?? "");
+    setLabelTouched(false);
+  }, [mode, open, trigger]);
 
   const handleSubmit = async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      if (kind === "schedule") {
+      if (mode === "add" && kind === "schedule") {
         const cronExpr = toCronExpression(config);
         if (!cronExpr.trim()) {
           setSubmitting(false);
@@ -476,23 +531,42 @@ function AddTriggerDialog({
           label: label.trim() || undefined,
         });
         toast.success(t(($) => $.add_trigger_dialog.toast_added_schedule));
-      } else {
+      } else if (mode === "add") {
         await createTrigger.mutateAsync({
           autopilotId,
           kind: "webhook",
           label: label.trim() || undefined,
         });
         toast.success(t(($) => $.add_trigger_dialog.toast_added_webhook));
+      } else if (trigger) {
+        const cronExpr = trigger.kind === "schedule" ? toCronExpression(config) : undefined;
+        if (trigger.kind === "schedule" && !cronExpr?.trim()) {
+          setSubmitting(false);
+          return;
+        }
+        const payload = {
+          autopilotId,
+          triggerId: trigger.id,
+          enabled,
+          ...(labelTouched ? { label: label.trim() } : {}),
+          ...(trigger.kind === "schedule"
+            ? {
+                cron_expression: cronExpr,
+                timezone: config.timezone || undefined,
+              }
+            : {}),
+        };
+        await updateTrigger.mutateAsync(payload);
+        toast.success(t(($) => $.edit_trigger_dialog.toast_updated));
       }
       onOpenChange(false);
-      setKind("schedule");
-      setConfig(getDefaultTriggerConfig());
-      setLabel("");
     } catch (err) {
       toast.error(
         err instanceof Error && err.message
           ? err.message
-          : t(($) => $.add_trigger_dialog.toast_add_failed),
+          : mode === "add"
+            ? t(($) => $.add_trigger_dialog.toast_add_failed)
+            : t(($) => $.edit_trigger_dialog.toast_update_failed),
       );
     } finally {
       setSubmitting(false);
@@ -502,9 +576,14 @@ function AddTriggerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
-        <DialogTitle>{t(($) => $.add_trigger_dialog.title)}</DialogTitle>
+        <DialogTitle>
+          {mode === "add"
+            ? t(($) => $.add_trigger_dialog.title)
+            : t(($) => $.edit_trigger_dialog.title)}
+        </DialogTitle>
         <div className="space-y-4 pt-2">
-          <div>
+          {mode === "add" ? (
+            <div>
             <label className="text-xs font-medium text-muted-foreground">
               {t(($) => $.add_trigger_dialog.type_label)}
             </label>
@@ -536,33 +615,69 @@ function AddTriggerDialog({
                 {t(($) => $.add_trigger_dialog.type_webhook)}
               </button>
             </div>
-          </div>
+            </div>
+          ) : trigger ? (
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">
+                {t(($) => $.edit_trigger_dialog.kind_label)}
+              </div>
+              <div className="mt-1 text-sm">{t(($) => $.trigger_kind[trigger.kind])}</div>
+            </div>
+          ) : null}
 
-          {kind === "schedule" ? (
+          {mode === "edit" && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <label htmlFor="trigger-enabled" className="text-sm font-medium">
+                {t(($) => $.edit_trigger_dialog.enabled_label)}
+              </label>
+              <Switch
+                id="trigger-enabled"
+                checked={enabled}
+                onCheckedChange={setEnabled}
+                aria-label={t(($) => $.edit_trigger_dialog.enabled_label)}
+              />
+            </div>
+          )}
+
+          {(mode === "add" ? kind : trigger?.kind) === "schedule" ? (
             <TriggerConfigSection config={config} onChange={setConfig} />
+          ) : (mode === "add" ? kind : trigger?.kind) === "webhook" ? (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              {mode === "add"
+                ? t(($) => $.add_trigger_dialog.webhook_help)
+                : t(($) => $.edit_trigger_dialog.webhook_help)}
+            </p>
           ) : (
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              {t(($) => $.add_trigger_dialog.webhook_help)}
+              {t(($) => $.edit_trigger_dialog.api_note)}
             </p>
           )}
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="trigger-label" className="text-xs font-medium text-muted-foreground">
               {t(($) => $.add_trigger_dialog.label_field)}
             </label>
             <input
+              id="trigger-label"
               type="text"
               value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                if (mode === "edit") setLabelTouched(true);
+              }}
               placeholder={t(($) => $.add_trigger_dialog.label_placeholder)}
               className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
           <div className="flex justify-end pt-1">
             <Button size="sm" onClick={handleSubmit} disabled={submitting}>
-              {submitting
-                ? t(($) => $.add_trigger_dialog.submitting)
-                : t(($) => $.add_trigger_dialog.submit)}
+              {mode === "add"
+                ? submitting
+                  ? t(($) => $.add_trigger_dialog.submitting)
+                  : t(($) => $.add_trigger_dialog.submit)
+                : submitting
+                  ? t(($) => $.edit_trigger_dialog.saving)
+                  : t(($) => $.edit_trigger_dialog.save)}
             </Button>
           </div>
         </div>
@@ -585,6 +700,7 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const triggerAutopilot = useTriggerAutopilot();
 
   const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
+  const [editingTrigger, setEditingTrigger] = useState<AutopilotTrigger | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -771,7 +887,12 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
             ) : (
               <div className="space-y-2">
                 {triggers.map((trig) => (
-                  <TriggerRow key={trig.id} trigger={trig} autopilotId={autopilotId} />
+                  <TriggerRow
+                    key={trig.id}
+                    trigger={trig}
+                    autopilotId={autopilotId}
+                    onEdit={setEditingTrigger}
+                  />
                 ))}
               </div>
             )}
@@ -822,11 +943,23 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
         </div>
       </div>
 
-      <AddTriggerDialog
+      <TriggerDialog
+        mode="add"
         open={triggerDialogOpen}
         onOpenChange={setTriggerDialogOpen}
         autopilotId={autopilotId}
       />
+      {editingTrigger && (
+        <TriggerDialog
+          mode="edit"
+          open={editingTrigger !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingTrigger(null);
+          }}
+          autopilotId={autopilotId}
+          trigger={editingTrigger}
+        />
+      )}
       {editDialogOpen && (
         <AutopilotDialog
           mode="edit"
