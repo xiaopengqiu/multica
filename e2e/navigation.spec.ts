@@ -23,6 +23,35 @@ test.describe("Navigation", () => {
     await expect(page).toHaveURL(/\/issues/);
   });
 
+  test("left sidebar collapses and restores from the page header", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const sidebarGap = page.locator('[data-slot="sidebar-gap"]');
+    const sidebarInset = page.locator('[data-slot="sidebar-inset"]');
+    const trigger = sidebarInset.locator('[data-sidebar="trigger"]');
+    await expect(trigger).toBeVisible();
+
+    const initialGapWidth = await sidebarGap.evaluate((element) => element.getBoundingClientRect().width);
+    const initialInsetWidth = await sidebarInset.evaluate((element) => element.getBoundingClientRect().width);
+    expect(initialGapWidth).toBeGreaterThan(0);
+
+    await trigger.click();
+
+    await expect.poll(() => sidebarGap.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
+    await expect
+      .poll(() => sidebarInset.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(initialInsetWidth + initialGapWidth / 2);
+
+    await trigger.click();
+
+    await expect
+      .poll(() => sidebarGap.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(initialGapWidth - 2);
+    await expect
+      .poll(() => sidebarInset.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeLessThan(initialInsetWidth + 2);
+  });
+
   test("settings page loads via workspace menu", async ({ page }) => {
     // Settings is inside the workspace dropdown menu
     await openWorkspaceMenu(page);
