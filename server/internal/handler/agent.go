@@ -465,7 +465,7 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Visibility == "" {
-		req.Visibility = "private"
+		req.Visibility = "workspace"
 	}
 	if req.MaxConcurrentTasks == 0 {
 		req.MaxConcurrentTasks = 6

@@ -94,9 +94,11 @@ Arguments are passed as-is, not through a shell (no injection risk), but whether
 - **Workspace** (`workspace`) — any member of the workspace can assign it
 - **Private** (`private`) — only workspace owners, admins, or the agent's creator can assign it
 
-New agents default to `private`.
+New agents default to `workspace`. This default applies to the UI, API, templates, and `multica agent create`; pass `private` explicitly when the agent contains sensitive personal instructions or should not be available to normal teammates.
 
-**Private does not mean hidden** — every member sees a private agent's name and description in the list, they just can't see sensitive config fields (the values in `custom_env` and MCP config are masked). Full meaning in [Agents → Who can assign an agent](/agents#who-can-assign-an-agent).
+Private agents are hidden from normal teammates. Workspace owners/admins retain administrative access. Workspace agents are visible and usable only inside their own workspace; sharing never crosses workspace boundaries.
+
+Agent visibility is separate from **runtime visibility**. A private runtime limits who can create an agent on it or move an agent to it. Once its owner creates a workspace-visible agent, every workspace member can dispatch that agent without gaining permission to reconfigure the runtime. Regardless of agent visibility, `custom_env` values and MCP config remain visible/editable only to the agent creator or a workspace owner/admin.
 
 ## Concurrency limit
 

@@ -26,7 +26,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
-  useAgentsViewStore.setState({ scope: "mine" });
+  useAgentsViewStore.setState({ scope: "all" });
   setCurrentWorkspace(null, null);
 });
 
@@ -35,8 +35,8 @@ afterEach(() => {
 });
 
 describe("useAgentsViewStore", () => {
-  it("defaults to 'mine'", () => {
-    expect(useAgentsViewStore.getState().scope).toBe("mine");
+  it("defaults to 'all'", () => {
+    expect(useAgentsViewStore.getState().scope).toBe("all");
   });
 
   it("setScope mutates the store", () => {
@@ -76,7 +76,7 @@ describe("useAgentsViewStore", () => {
     expect(useAgentsViewStore.getState().scope).toBe("mine");
   });
 
-  it("resets to 'mine' when switching to a workspace with no persisted value", async () => {
+  it("resets to 'all' when switching to a workspace with no persisted value", async () => {
     localStorage.setItem(
       "multica_agents_view:acme",
       JSON.stringify({ state: { scope: "all" }, version: 0 }),
@@ -90,7 +90,7 @@ describe("useAgentsViewStore", () => {
     setCurrentWorkspace("beta", "ws_b");
     await flush();
     await flush();
-    expect(useAgentsViewStore.getState().scope).toBe("mine");
+    expect(useAgentsViewStore.getState().scope).toBe("all");
     expect(localStorage.getItem("multica_agents_view:acme")).not.toBeNull();
   });
 });

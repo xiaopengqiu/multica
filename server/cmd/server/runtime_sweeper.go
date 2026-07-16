@@ -411,7 +411,13 @@ func activateScheduledIssue(ctx context.Context, pool *pgxpool.Pool, queries *db
 		  AND status = 'backlog'
 		  AND start_date IS NOT NULL
 		  AND start_date <= now()
-		RETURNING *
+		RETURNING id, workspace_id, title, description, status, priority,
+		          assignee_type, assignee_id, creator_type, creator_id,
+		          parent_issue_id, acceptance_criteria, context_refs, position,
+		          due_date, created_at, updated_at, number, project_id,
+		          origin_type, origin_id, first_executed_at, start_date,
+		          poll_start_at, poll_interval_minutes, poll_next_run,
+		          poll_last_run, poll_run_count
 	`,
 		issueID,
 	).Scan(
@@ -438,6 +444,11 @@ func activateScheduledIssue(ctx context.Context, pool *pgxpool.Pool, queries *db
 		&issue.OriginID,
 		&issue.FirstExecutedAt,
 		&issue.StartDate,
+		&issue.PollStartAt,
+		&issue.PollIntervalMinutes,
+		&issue.PollNextRun,
+		&issue.PollLastRun,
+		&issue.PollRunCount,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

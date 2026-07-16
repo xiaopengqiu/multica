@@ -4,19 +4,19 @@
 
 - Daemon 启动后页面显示 agent 运行时为 **offline**
 - Daemon 日志报 `invalid token`（401）或 `connection refused`
-- Agent 注册后 visibility 为 `private`，workspace 其他成员无法使用
+- Runtime 注册后 visibility 为 `private`，workspace 其他成员无法在该 runtime 上创建或迁移 Agent
 - cfuse `--version` 触发交互式引擎升级提示，导致 daemon 注册流程卡死
 
 ## 背景
 
-Daemon 是本地 agent 运行时的守护进程，负责向远端服务器注册本地的 claude/codex/openclaw/cfuse 等运行时，并通过 heartbeat 保持在线状态。注册时默认 visibility 为 `private`，需手动改为 `public` 才能被 workspace 下所有成员使用。
+Daemon 是本地 agent 运行时的守护进程，负责向远端服务器注册本地的 claude/codex/openclaw/cfuse 等运行时，并通过 heartbeat 保持在线状态。Runtime 注册时默认 visibility 为 `private`：只有 runtime owner 或 workspace owner/admin 能在其上创建或迁移 Agent。Runtime owner 创建 `workspace` Agent 后，同一 workspace 的所有成员都可以使用该 Agent，无需把 runtime 改为 `public`。
 
 ## 根因
 
 1. **Token 过期** — 本地 profile 中保存的 token 失效，导致 API 请求 401
 2. **server_url 指向 localhost** — profile 配置中 `server_url` 为 `localhost:8080`，而非远端服务器地址
 3. **cfuse 引擎版本检测阻塞** — cfuse `--version` 命令会先弹出交互式升级提示，daemon 调用时无 TTY 导致卡死
-4. **默认 visibility=private** — 注册时未传递 visibility 参数，数据库默认 `private`
+4. **Runtime 默认 visibility=private** — 注册时未传递 visibility 参数，数据库默认 `private`；这只限制创建/迁移 Agent，不限制使用已有的 `workspace` Agent
 
 ## 涉及代码
 
@@ -82,9 +82,9 @@ tail -20 ~/.multica/profiles/<profile>/daemon.log
 # 应看到 "registered runtime ... provider=cfuse" 和 "heartbeat" 日志
 ```
 
-### 5. 将 Agent 改为 Public
+### 5. 可选：将 Runtime 改为 Public
 
-注册后默认为 `private`，调用 PATCH 接口改为 `public`：
+如果希望普通 workspace member 也能在这个 runtime 上创建或迁移 Agent，可调用 PATCH 接口把 runtime 改为 `public`。如果只需要队友使用 runtime owner 已创建的 `workspace` Agent，无需执行此步骤。
 
 ```bash
 # 查看当前 runtime 列表
@@ -143,13 +143,13 @@ for id in $(echo "$RUNTIMES" | python3 -c "import json,sys; [print(r['id']) for 
   echo "Set $id -> public"
 done
 
-echo "Done. All agents registered as public."
+echo "Done. All runtimes are public for agent creation and migration."
 ```
 
 ## ⚠️ 注意事项
 
 - **cfuse 版本提示是阻塞的** — 每次升级 cfuse 后可能再次出现引擎版本提示，导致 daemon 注册卡死。daemon 没有超时优雅降级逻辑，cfuse 卡死会阻塞整个注册流程
 - **Token 隔离** — 全局 `~/.multica/config.json` 和 profile `~/.multica/profiles/<name>/config.json` 中的 token 是独立的，更新时别改错文件
-- **默认 private** — 当前 daemon 注册不传 visibility，每次重启 daemon 注册新 runtime 都需要手动改 public。如果希望默认 public，需修改 `server/internal/handler/runtime.go` 注册逻辑或 daemon 注册参数
+- **Runtime 默认 private** — 当前 daemon 注册不传 visibility。只有在需要其他成员创建/迁移 Agent 时才需要改为 public；已有 `workspace` Agent 的分配、聊天、提及和委派不受 runtime visibility 限制
 - **daemon restart vs start** — `daemon restart` 会先 stop 再 start，但如果旧进程端口未释放（health port 20038），会报 `bind: address already in use`，需先 `kill` 旧进程
 - **workspace_id 配置** — profile config.json 中的 `workspace_id` 必须在远端服务器上存在，否则 daemon 无法注册 runtime

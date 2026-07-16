@@ -135,7 +135,7 @@ func init() {
 	agentCreateCmd.Flags().String("custom-env", "", "Custom environment variables as JSON object, e.g. '{\"KEY\":\"value\"}'. Treated as secret material — never logged by the CLI, but values passed on the command line are visible to shell history and 'ps'; prefer --custom-env-stdin or --custom-env-file for real secrets. Pass '{}' to set an empty map.")
 	agentCreateCmd.Flags().Bool("custom-env-stdin", false, "Read the --custom-env JSON object from stdin. Keeps secrets out of shell history and 'ps'. Mutually exclusive with --custom-env and --custom-env-file.")
 	agentCreateCmd.Flags().String("custom-env-file", "", "Read the --custom-env JSON object from a file path (suggested mode: 0600). Mutually exclusive with --custom-env and --custom-env-stdin.")
-	agentCreateCmd.Flags().String("visibility", "private", "Visibility: private or workspace")
+	agentCreateCmd.Flags().String("visibility", "workspace", "Visibility: private or workspace")
 	agentCreateCmd.Flags().Int32("max-concurrent-tasks", 6, "Maximum concurrent tasks")
 	agentCreateCmd.Flags().String("output", "json", "Output format: table or json")
 
@@ -412,10 +412,8 @@ func runAgentCreate(cmd *cobra.Command, _ []string) error {
 		v, _ := cmd.Flags().GetString("model")
 		body["model"] = v
 	}
-	if cmd.Flags().Changed("visibility") {
-		v, _ := cmd.Flags().GetString("visibility")
-		body["visibility"] = v
-	}
+	visibility, _ := cmd.Flags().GetString("visibility")
+	body["visibility"] = visibility
 	if cmd.Flags().Changed("max-concurrent-tasks") {
 		v, _ := cmd.Flags().GetInt32("max-concurrent-tasks")
 		body["max_concurrent_tasks"] = v
@@ -453,10 +451,8 @@ func runAgentCreateFromTemplate(cmd *cobra.Command, client *cli.APIClient, name,
 		v, _ := cmd.Flags().GetString("model")
 		body["model"] = v
 	}
-	if cmd.Flags().Changed("visibility") {
-		v, _ := cmd.Flags().GetString("visibility")
-		body["visibility"] = v
-	}
+	visibility, _ := cmd.Flags().GetString("visibility")
+	body["visibility"] = visibility
 	if cmd.Flags().Changed("max-concurrent-tasks") {
 		v, _ := cmd.Flags().GetInt32("max-concurrent-tasks")
 		body["max_concurrent_tasks"] = v

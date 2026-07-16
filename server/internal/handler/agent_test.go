@@ -185,3 +185,47 @@ func TestCreateAgent_RejectsDuplicateName(t *testing.T) {
 		t.Fatalf("second CreateAgent with duplicate name: expected 409, got %d: %s", w2.Code, w2.Body.String())
 	}
 }
+
+func TestCreateAgent_DefaultsVisibilityToWorkspace(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	const defaultName = "default-workspace-visibility-test-agent"
+	const privateName = "explicit-private-visibility-test-agent"
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(),
+			`DELETE FROM agent WHERE workspace_id = $1 AND name IN ($2, $3)`,
+			testWorkspaceID, defaultName, privateName,
+		)
+	})
+
+	create := func(name string, visibility *string) AgentResponse {
+		t.Helper()
+		body := map[string]any{
+			"name":       name,
+			"runtime_id": handlerTestRuntimeID(t),
+		}
+		if visibility != nil {
+			body["visibility"] = *visibility
+		}
+		w := httptest.NewRecorder()
+		testHandler.CreateAgent(w, newRequest(http.MethodPost, "/api/agents", body))
+		if w.Code != http.StatusCreated {
+			t.Fatalf("CreateAgent(%s): expected 201, got %d: %s", name, w.Code, w.Body.String())
+		}
+		var resp AgentResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode CreateAgent(%s): %v", name, err)
+		}
+		return resp
+	}
+
+	if got := create(defaultName, nil).Visibility; got != "workspace" {
+		t.Fatalf("omitted visibility = %q, want workspace", got)
+	}
+	private := "private"
+	if got := create(privateName, &private).Visibility; got != "private" {
+		t.Fatalf("explicit visibility = %q, want private", got)
+	}
+}

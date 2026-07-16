@@ -18,7 +18,7 @@ export interface AgentsViewState {
 export const useAgentsViewStore = create<AgentsViewState>()(
   persist(
     (set) => ({
-      scope: "mine",
+      scope: "all",
       setScope: (scope) => set({ scope }),
     }),
     {
@@ -26,11 +26,11 @@ export const useAgentsViewStore = create<AgentsViewState>()(
       storage: createJSONStorage(() => createWorkspaceAwareStorage(defaultStorage)),
       partialize: (state) => ({ scope: state.scope }),
       // On rehydrate, if the new workspace has no persisted value, reset to
-      // the default "mine" instead of leaving the previous workspace's in-
+      // the default "all" instead of leaving the previous workspace's in-
       // memory scope in place. Default merge keeps current state when
       // persisted is undefined, which would leak "all" across workspaces.
       merge: (persisted, current) => {
-        if (!persisted) return { ...current, scope: "mine" };
+        if (!persisted) return { ...current, scope: "all" };
         return { ...current, ...(persisted as Partial<AgentsViewState>) };
       },
     },

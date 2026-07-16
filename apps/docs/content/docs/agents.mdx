@@ -35,11 +35,13 @@ When you create an agent, you pick a **visibility** that controls who can assign
 - **Workspace** — any member of the workspace can assign it
 - **Private** — only workspace owners, admins, or the agent's creator can assign it
 
-New agents default to **private**. To make one available to the whole workspace, set visibility to `workspace` at creation time, or change it later in the agent's config. For the full role-permission matrix, see [Members and roles](/members-roles).
+New agents default to **Workspace**, so future teammates are available to everyone in the current workspace across the Agents page, issue and project selectors, Chat, `@` mentions, and delegation. Agents never appear in another workspace. Choose **Private** explicitly for a sensitive personal agent. For the full role-permission matrix, see [Members and roles](/members-roles).
 
 <Callout type="info">
-**Private means "restricted who can assign," not "hidden from everyone else."** Every member of the workspace sees a private agent's name and description in the agents list — they just can't see its config details (custom environment variables, MCP config, and other sensitive fields are masked). If you need "visible to only one person," that's not currently possible.
+**Private agents are hidden from normal teammates.** Only the creator and workspace owners/admins can see or use them. For workspace agents, teammates can use the agent but cannot see its `custom_env` values or MCP config, and only the creator or a workspace owner/admin can edit those sensitive settings.
 </Callout>
+
+The Agents page opens to **All** for workspaces without a saved preference. Your agents carry a **You** label; teammate agents show their creator, so shared availability does not erase ownership.
 
 ## Next steps
 

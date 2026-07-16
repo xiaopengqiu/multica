@@ -29,6 +29,86 @@ func freshAgentUpdateCmd() *cobra.Command {
 	return c
 }
 
+func freshAgentCreateCmd() *cobra.Command {
+	c := &cobra.Command{Use: "create"}
+	c.Flags().String("name", "", "")
+	c.Flags().String("description", "", "")
+	c.Flags().String("instructions", "", "")
+	c.Flags().String("runtime-id", "", "")
+	c.Flags().String("from-template", "", "")
+	c.Flags().String("runtime-config", "", "")
+	c.Flags().String("model", "", "")
+	c.Flags().String("custom-args", "", "")
+	c.Flags().String("custom-env", "", "")
+	c.Flags().Bool("custom-env-stdin", false, "")
+	c.Flags().String("custom-env-file", "", "")
+	c.Flags().String("visibility", "workspace", "")
+	c.Flags().Int32("max-concurrent-tasks", 6, "")
+	c.Flags().String("output", "json", "")
+	c.Flags().String("profile", "", "")
+	return c
+}
+
+func TestAgentCreateVisibilitySerialization(t *testing.T) {
+	if got := agentCreateCmd.Flag("visibility").DefValue; got != "workspace" {
+		t.Fatalf("agent create --visibility default = %q, want workspace", got)
+	}
+
+	tests := []struct {
+		name           string
+		template       bool
+		explicit       string
+		wantVisibility any
+	}{
+		{name: "manual default workspace", wantVisibility: "workspace"},
+		{name: "manual explicit private", explicit: "private", wantVisibility: "private"},
+		{name: "template default workspace", template: true, wantVisibility: "workspace"},
+		{name: "template explicit private", template: true, explicit: "private", wantVisibility: "private"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+					t.Errorf("decode request body: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if tc.template {
+					_, _ = w.Write([]byte(`{"agent":{"id":"agent-1","name":"test"}}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{"id":"agent-1","name":"test"}`))
+			}))
+			defer srv.Close()
+
+			t.Setenv("MULTICA_SERVER_URL", srv.URL)
+			t.Setenv("MULTICA_WORKSPACE_ID", "ws-1")
+			t.Setenv("MULTICA_TOKEN", "test-token")
+			t.Setenv("MULTICA_AGENT_ID", "")
+			t.Setenv("MULTICA_TASK_ID", "")
+
+			cmd := freshAgentCreateCmd()
+			_ = cmd.Flags().Set("name", "test")
+			_ = cmd.Flags().Set("runtime-id", "runtime-1")
+			if tc.template {
+				_ = cmd.Flags().Set("from-template", "adr-writer")
+			}
+			if tc.explicit != "" {
+				_ = cmd.Flags().Set("visibility", tc.explicit)
+			}
+
+			if err := runAgentCreate(cmd, nil); err != nil {
+				t.Fatalf("runAgentCreate: %v", err)
+			}
+			visibility, present := got["visibility"]
+			if !present || visibility != tc.wantVisibility {
+				t.Fatalf("visibility = %v (present=%v), want %v", visibility, present, tc.wantVisibility)
+			}
+		})
+	}
+}
+
 // TestResolveWorkspaceID_AgentContextSkipsConfig is a regression test for
 // the cross-workspace contamination bug (#1235). Inside a daemon-spawned
 // agent task (MULTICA_AGENT_ID / MULTICA_TASK_ID set), the CLI must NOT
@@ -752,7 +832,6 @@ func TestAgentAvatarUpdateFailure(t *testing.T) {
 	}
 }
 
-
 // TestAgentAvatarMissingFileFlag rejects when --file is not provided.
 func TestAgentAvatarMissingFileFlag(t *testing.T) {
 	t.Setenv("MULTICA_SERVER_URL", "http://127.0.0.1:0")
@@ -889,13 +968,13 @@ func TestAgentGetTableIncludesAvatarURL(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		json.NewEncoder(w).Encode(map[string]any{
-			"id":         "agent-123",
-			"name":       "TestAgent",
-			"status":     "active",
+			"id":           "agent-123",
+			"name":         "TestAgent",
+			"status":       "active",
 			"runtime_mode": "cloud",
-			"visibility": "workspace",
-			"avatar_url": "https://cdn.example.com/avatar.png",
-			"description": "A test agent",
+			"visibility":   "workspace",
+			"avatar_url":   "https://cdn.example.com/avatar.png",
+			"description":  "A test agent",
 		})
 	}))
 	defer srv.Close()

@@ -9,6 +9,14 @@ In Multica, agents are first-class citizens. They have profiles, show up on the 
 
 Assignees are polymorphic — an issue can be assigned to a member or an agent. The `assignee_type` + `assignee_id` fields on issues distinguish between the two. Agents render with distinct styling (purple background, robot icon).
 
+## 工作空间共享与隐私
+
+新建智能体默认使用 `workspace` 可见性。同一工作空间的所有成员都能在智能体页面、议题与项目选择器、聊天、`@` 提及和委派入口中看到并使用它；智能体不会出现在其他工作空间中。
+
+如需处理个人敏感信息，请在创建时显式选择 `private`。私有智能体对普通队友隐藏，只有创建者以及工作空间 owner/admin 可以查看和使用。对于工作空间智能体，队友可以发起任务，但 `custom_env` 的值和 MCP 配置仍会被脱敏，而且只有创建者或工作空间 owner/admin 可以编辑这些敏感配置。
+
+智能体可见性和运行时可见性是两套独立策略：私有运行时限制其他成员在其上创建智能体或把智能体迁移到该运行时，但不会阻止成员使用已经创建好的工作空间智能体。智能体页面在没有保存过筛选偏好时默认显示“全部”；自己的智能体标记为“你”，队友的智能体显示创建者。
+
 ## Agent Execution Model
 
 When an agent is assigned a task in Multica:

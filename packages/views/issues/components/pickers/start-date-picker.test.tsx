@@ -44,10 +44,12 @@ describe("StartDatePicker", () => {
     const startDate = "2026-05-25T06:30:00.000Z";
     render(<StartDatePicker startDate={startDate} onUpdate={vi.fn()} />);
 
-    const button = screen.getByRole("button");
     const date = new Date(startDate);
-    expect(button).toHaveTextContent(date.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
-    expect(button).toHaveTextContent(date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+    const dateLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const timeLabel = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const button = screen.getByRole("button", { name: `${dateLabel}, ${timeLabel}` });
+    expect(button).toHaveTextContent(dateLabel);
+    expect(button).toHaveTextContent(timeLabel);
   });
 
   it("emits an ISO timestamp when the datetime input changes", async () => {

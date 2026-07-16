@@ -273,6 +273,8 @@ function machineTitle(
 
   if (first.machine_alias) return first.machine_alias;
 
+  if (first.display_name) return first.display_name;
+
   const deviceName = runtimeDeviceName(first);
   if (deviceName) return deviceName;
 

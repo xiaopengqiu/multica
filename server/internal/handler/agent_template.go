@@ -169,7 +169,7 @@ func (h *Handler) CreateAgentFromTemplate(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if req.Visibility == "" {
-		req.Visibility = "private"
+		req.Visibility = "workspace"
 	}
 	if req.MaxConcurrentTasks == 0 {
 		req.MaxConcurrentTasks = 6
@@ -650,4 +650,3 @@ func fetchSkillFromURL(client *http.Client, rawURL string) (*importedSkill, erro
 	}
 	return nil, fmt.Errorf("unknown import source for %s", rawURL)
 }
-

@@ -203,6 +203,141 @@ func listContainsAgent(t *testing.T, body []byte, agentID string) bool {
 	return false
 }
 
+func TestWorkspaceAgent_IsSharedAcrossMemberDispatchSurfaces(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	ctx := context.Background()
+	runtimeID, runtimeOwnerID, memberID := runtimeVisibilityFixture(t)
+
+	var agentID string
+	if err := testPool.QueryRow(ctx, `
+		INSERT INTO agent (
+			workspace_id, name, description, runtime_mode, runtime_config,
+			runtime_id, visibility, max_concurrent_tasks, owner_id,
+			instructions, custom_env, custom_args, mcp_config
+		)
+		VALUES ($1, 'shared-private-runtime-agent', '', 'cloud', '{}'::jsonb,
+		        $2, 'workspace', 1, $3, '', '{"TOKEN":"secret"}'::jsonb,
+		        '[]'::jsonb, '{"servers":{"secret":{}}}'::jsonb)
+		RETURNING id
+	`, testWorkspaceID, runtimeID, runtimeOwnerID).Scan(&agentID); err != nil {
+		t.Fatalf("create workspace agent on private runtime: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM agent WHERE id = $1`, agentID)
+	})
+
+	w := httptest.NewRecorder()
+	testHandler.ListAgents(w, newRequestAs(memberID, http.MethodGet, "/api/agents", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("ListAgents as teammate: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var listed []AgentResponse
+	if err := json.NewDecoder(w.Body).Decode(&listed); err != nil {
+		t.Fatalf("decode ListAgents: %v", err)
+	}
+	var shared *AgentResponse
+	for i := range listed {
+		if listed[i].ID == agentID {
+			shared = &listed[i]
+			break
+		}
+	}
+	if shared == nil {
+		t.Fatalf("workspace agent %s missing from teammate list", agentID)
+	}
+	if !shared.CustomEnvRedacted || shared.CustomEnv["TOKEN"] != "****" {
+		t.Fatalf("custom_env was not redacted for teammate: %+v", shared.CustomEnv)
+	}
+	if !shared.McpConfigRedacted || string(shared.McpConfig) != "null" {
+		t.Fatalf("mcp_config was not redacted for teammate: %s", shared.McpConfig)
+	}
+
+	issueBody := map[string]any{
+		"title":         "teammate assigns shared agent on private runtime",
+		"status":        "todo",
+		"priority":      "medium",
+		"assignee_type": "agent",
+		"assignee_id":   agentID,
+	}
+	w = httptest.NewRecorder()
+	testHandler.CreateIssue(w, newRequestAs(memberID, http.MethodPost, "/api/issues?workspace_id="+testWorkspaceID, issueBody))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("CreateIssue assigning shared agent: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var assignedIssue map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&assignedIssue); err != nil {
+		t.Fatalf("decode assigned issue: %v", err)
+	}
+	assignedIssueID, _ := assignedIssue["id"].(string)
+	var assignedTasks int
+	if err := testPool.QueryRow(ctx,
+		`SELECT count(*) FROM agent_task_queue WHERE issue_id = $1 AND agent_id = $2`,
+		assignedIssueID, agentID,
+	).Scan(&assignedTasks); err != nil {
+		t.Fatalf("count assignment tasks: %v", err)
+	}
+	if assignedTasks != 1 {
+		t.Fatalf("assignment task count = %d, want 1", assignedTasks)
+	}
+
+	memberRow, err := testHandler.Queries.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
+		UserID:      util.MustParseUUID(memberID),
+		WorkspaceID: util.MustParseUUID(testWorkspaceID),
+	})
+	if err != nil {
+		t.Fatalf("load teammate member row: %v", err)
+	}
+	w = httptest.NewRecorder()
+	chatReq := newRequestAs(memberID, http.MethodPost, "/api/chat/sessions", map[string]any{
+		"agent_id": agentID,
+		"title":    "shared agent chat",
+	})
+	chatReq = chatReq.WithContext(middleware.SetMemberContext(chatReq.Context(), testWorkspaceID, memberRow))
+	testHandler.CreateChatSession(w, chatReq)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("CreateChatSession with shared agent: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	testHandler.CreateIssue(w, newRequestAs(memberID, http.MethodPost, "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
+		"title":    "teammate mentions shared agent",
+		"status":   "todo",
+		"priority": "medium",
+	}))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("CreateIssue for mention: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var mentionIssue map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&mentionIssue); err != nil {
+		t.Fatalf("decode mention issue: %v", err)
+	}
+	mentionIssueID, _ := mentionIssue["id"].(string)
+
+	w = httptest.NewRecorder()
+	commentReq := newRequestAs(memberID, http.MethodPost, "/api/issues/"+mentionIssueID+"/comments", map[string]any{
+		"content": "[@Shared](mention://agent/" + agentID + ") please help",
+		"type":    "comment",
+	})
+	commentReq = withURLParam(commentReq, "id", mentionIssueID)
+	testHandler.CreateComment(w, commentReq)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("CreateComment mentioning shared agent: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var mentionTasks int
+	if err := testPool.QueryRow(ctx,
+		`SELECT count(*) FROM agent_task_queue WHERE issue_id = $1 AND agent_id = $2`,
+		mentionIssueID, agentID,
+	).Scan(&mentionTasks); err != nil {
+		t.Fatalf("count mention tasks: %v", err)
+	}
+	if mentionTasks != 1 {
+		t.Fatalf("mention task count = %d, want 1", mentionTasks)
+	}
+}
+
 // TestListAgentTasks_PrivateAgentForbidsPlainMember verifies that the agent
 // task history endpoint (the "查看历史会话" surface) is also gated.
 func TestListAgentTasks_PrivateAgentForbidsPlainMember(t *testing.T) {
